@@ -233,26 +233,215 @@ def process_reading(sensor, reading_value, system_mode):
     return alerts
 
 
-# Initialize sensors for the Peterson home
-sensors = [
-    create_sensor("MOTION_001", "Living Room", "motion"),
-    create_sensor("TEMP_001", "Kitchen", "temperature", threshold=35),
-    create_sensor("DOOR_001", "Front Door", "door"),
-    create_sensor("SMOKE_001", "Bedroom", "smoke")
-]
+def trigger_alert(alert):
+    """
+    Displays an alert to the user.
 
-# Test print statements
-print(f"Initialized {len(sensors)} sensors")
-for sensor in sensors:
-    print(f"  - {sensor['id']}: {sensor['location']} ({sensor['type']})")
+    Parameters:
+    - alert: Alert dictionary
+    """
+    severity_symbol = {
+        "LOW": "ℹ️",
+        "MEDIUM": "⚠️",
+        "HIGH": "🚨",
+        "CRITICAL": "🔥"
+    }
+
+    symbol = severity_symbol.get(alert["severity"], "⚠️")
+    print(f"[ALERT!] {symbol} {alert['severity']}: {alert['message']}")
 
 
-    # Test temperature check
-test_sensor = create_sensor("TEMP_TEST", "Test Room", "temperature", threshold=35)
-print(f"34°F is abnormal: {is_abnormal_reading(test_sensor, 34)}")
-print(f"68°F is abnormal: {is_abnormal_reading(test_sensor, 68)}")
+def log_event(message, timestamp=None):
+    """
+    Logs an event to the console.
 
-# Test security alert
-motion_sensor = create_sensor("MOTION_TEST", "Test Room", "motion")
-print(f"Motion in AWAY mode triggers alert: {should_trigger_security_alert(motion_sensor, True, 'AWAY')}")
-print(f"Motion in HOME mode triggers alert: {should_trigger_security_alert(motion_sensor, True, 'HOME')}")
+    Parameters:
+    - message: The message to log
+    - timestamp: Optional timestamp
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+    print(f"[LOG] [{timestamp}] {message}")
+
+
+
+class Sensor:
+    """
+    Represents a sensor in the HomeGuard system.
+    """
+
+    def __init__(self, sensor_id, location, sensor_type, threshold=None):
+        """
+        Initializes a new sensor.
+        """
+        self.id = sensor_id
+        self.location = location
+        self.type = sensor_type
+        self.threshold = threshold
+        self.current_value = None
+
+    def read(self):
+        """
+        Generates and stores a new reading for this sensor.
+
+        Returns:
+        - The reading value
+        """
+        sensor_dict = {
+            "id": self.id,
+            "location": self.location,
+            "type": self.type,
+            "threshold": self.threshold
+        }
+
+        self.current_value = generate_reading(sensor_dict)
+        return self.current_value
+
+    def isAbnormal(self):
+        """
+        Checks if the current reading is abnormal.
+
+        Returns:
+        - True if the reading is abnormal, False otherwise
+        """
+        sensor_dict = {
+            "id": self.id,
+            "location": self.location,
+            "type": self.type,
+            "threshold": self.threshold
+        }
+
+        return is_abnormal_reading(sensor_dict, self.current_value)
+
+    def reset(self):
+        """
+        Resets the sensor's current reading to None.
+        """
+        self.current_value = None
+
+    def __str__(self):
+        """
+        Returns a string representation of the sensor.
+        """
+        status = "No reading" if self.current_value is None else str(self.current_value)
+        return f"{self.id} ({self.location}): {status}"
+    
+
+def run_simulation(duration_minutes=5, system_mode="AWAY"):
+    """
+    Runs the HomeGuard security system simulation.
+
+    Parameters:
+    - duration_minutes: How long to run the simulation
+    - system_mode: System mode (HOME, AWAY, SLEEP)
+    """
+    print("=" * 50)
+    print("=== HomeGuard Security System ===")
+    print("=" * 50)
+    print(f"Mode: {system_mode}\n")
+
+    # Use sensor objects
+    sensors = [
+        Sensor("MOTION_001", "Living Room", "motion"),
+        Sensor("TEMP_001", "Kitchen", "temperature", threshold=35),
+        Sensor("DOOR_001", "Front Door", "door"),
+        Sensor("SMOKE_001", "Bedroom", "smoke")
+    ]
+
+    # Simulate time passing
+    for minute in range(duration_minutes):
+        current_time = datetime.now().strftime("%H:%M:%S")
+        print(f"\nTime: {current_time}")
+
+        # Read all sensors
+        for sensor in sensors:
+            reading = sensor.read()
+
+            # Display the reading
+            if sensor.type == "temperature":
+                status = "Normal" if 65 <= reading <= 75 else "Abnormal"
+                print(f"[READING] {sensor.location} Temperature: {reading}°F ({status})")
+            elif sensor.type == "motion":
+                status = "DETECTED" if reading else "No activity"
+                print(f"[READING] {sensor.location} Motion: {status}")
+            elif sensor.type == "door":
+                print(f"[READING] {sensor.location}: {reading}")
+            elif sensor.type == "smoke":
+                print(f"[READING] {sensor.location} Smoke: {reading}")
+
+            # Convert sensor object to dict for process_reading()
+            sensor_dict = {
+                "id": sensor.id,
+                "location": sensor.location,
+                "type": sensor.type,
+                "threshold": sensor.threshold
+            }
+
+            alerts = process_reading(sensor_dict, reading, system_mode)
+
+            # Trigger alerts
+            for alert in alerts:
+                trigger_alert(alert)
+                if alert["severity"] in ["HIGH", "CRITICAL"]:
+                    log_event("Sending notification to homeowner...")
+
+        import time
+        time.sleep(0.5)
+
+    print("\n" + "=" * 50)
+    print("Simulation complete!")
+    print("=" * 50)
+    
+if __name__ == "__main__":
+    run_simulation(duration_minutes=3, system_mode="AWAY")
+
+
+# sensor_objects = [
+#     Sensor("MOTION_001", "Living Room", "motion"),
+#     Sensor("TEMP_001", "Kitchen", "temperature", threshold=35),
+#     Sensor("DOOR_001", "Front Door", "door"),
+#     Sensor("SMOKE_001", "Bedroom", "smoke")
+# ]
+
+
+# # Initialize sensors for the Peterson home
+# sensors = [
+#     create_sensor("MOTION_001", "Living Room", "motion"),
+#     create_sensor("TEMP_001", "Kitchen", "temperature", threshold=35),
+#     create_sensor("DOOR_001", "Front Door", "door"),
+#     create_sensor("SMOKE_001", "Bedroom", "smoke")
+# ]
+#
+# # Test print statements
+# print(f"Initialized {len(sensors)} sensors")
+# for sensor in sensors:
+#     print(f"  - {sensor['id']}: {sensor['location']} ({sensor['type']})")
+#
+#
+# # Test temperature check
+# test_sensor = create_sensor("TEMP_TEST", "Test Room", "temperature", threshold=35)
+# print(f"34°F is abnormal: {is_abnormal_reading(test_sensor, 34)}")
+# print(f"68°F is abnormal: {is_abnormal_reading(test_sensor, 68)}")
+#
+# # Test security alert
+# motion_sensor = create_sensor("MOTION_TEST", "Test Room", "motion")
+# print(f"Motion in AWAY mode triggers alert: {should_trigger_security_alert(motion_sensor, True, 'AWAY')}")
+# print(f"Motion in HOME mode triggers alert: {should_trigger_security_alert(motion_sensor, True, 'HOME')}")
+#
+# # Test reading generation
+# test_sensor = sensors[0]  # Motion sensor
+# reading = generate_reading(test_sensor)
+# print(f"Generated reading for {test_sensor['location']}: {reading}")
+#
+# # Test processing
+# alerts = process_reading(test_sensor, True, "AWAY")
+# if alerts:
+#     trigger_alert(alerts[0])
+#
+#
+# # Step 5 class test
+# test_sensor = Sensor("TEST_001", "Test Room", "temperature", threshold=35)
+# test_sensor.read()
+# print(f"Sensor reading: {test_sensor.current_value}")
+# print(f"Is abnormal: {test_sensor.isAbnormal()}")
+# print(f"Sensor info: {test_sensor}")
